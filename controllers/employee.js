@@ -5,7 +5,21 @@ const storageRef = firebase.storage().ref();
 
 exports.getEmployees = async (req, res) => {
   try {
-    let collections = await employeeRef.orderBy('creationDate', 'desc').get();
+    let collections;
+    if (req.query.searchTerm && req.query.searchBy) {
+      const { searchTerm, searchBy } = req.query;
+      collections = await employeeRef.where(searchBy, '==', searchTerm).get();
+    } else {
+      collections = await employeeRef.orderBy('creationDate', 'desc').get();
+    }
+
+    if (collections.empty) {
+      res.status(200).json({
+        success: true,
+        data: 'No matching documents.',
+      });
+      return;
+    }
 
     let data = [];
 
@@ -31,11 +45,15 @@ exports.addEmployee = async (req, res) => {
     let imageUrl = '';
 
     if (req.files) {
-      const imageRef = await storageRef.child(req.files.file.name);
-      const imageBuffer = new Uint8Array(req.files.file.data);
-      await imageRef.put(imageBuffer);
+      const { name, data } = req.files.photo;
+      console.log(name, data);
 
-      imageUrl = await storageRef.child(req.files.file.name).getDownloadURL();
+      const imageRef = await storageRef.child(name);
+      const imageBuffer = new Uint8Array(data);
+      const imageResponse = await imageRef.put(imageBuffer);
+      if (imageResponse.state === 'success') {
+        imageUrl = await storageRef.child(name).getDownloadURL();
+      }
     }
     const {
       name = '',
